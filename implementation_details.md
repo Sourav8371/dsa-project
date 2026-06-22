@@ -17,17 +17,12 @@ graph TD
     subgraph Models
         D[models.py] -->|Simulates Device| E[Node Class]
     end
-    subgraph Desktop App
-        F[main.py] --> G[simulation.py]
-        G -->|Tkinter GUI| H[Tkinter Canvas]
-    end
     subgraph Web App
-        I[web_server.py] -->|HTTP API /data| J[index.html]
+        F[main.py] --> I[web_server.py]
+        I -->|HTTP API /data| J[index.html]
         J -->|HTML5 Canvas| K[Browser UI]
     end
-    E --> F
     E --> I
-    A --> G
     A --> I
 ```
 
@@ -84,20 +79,7 @@ The `Node` class represents a mobile communication device.
 
 ---
 
-## 4. Desktop Visualizer (`simulation.py`)
-
-This application uses the **Tkinter** GUI library to display the simulation.
-
-- **Canvas Object Pooling**: To prevent resource leaks on macOS, the canvas doesn't recreate line objects every frame. It keeps a list of `edge_lines` (pool) and toggles their visibility and coordinates using `self.canvas.coords()` and `self.canvas.itemconfigure(..., state='hidden'/'normal')`.
-- **Interactive Click Event**:
-  - We bind `<Button-1>` (left-click) to the Tkinter canvas.
-  - In `on_canvas_click(event)`, we retrieve `(event.x, event.y)` and calculate the Euclidean distance to every node.
-  - If a healthy node is within $15\text{px}$, it is designated as the new `source_id`.
-  - To make it consistent, the old source node is assigned a random velocity (starts moving), and the new source node's velocity is set to $0$ (stops moving).
-
----
-
-## 5. Web Visualizer (`web_server.py` + `index.html`)
+## 4. Web Visualizer (`web_server.py` + `index.html`)
 
 This setup uses a Python HTTP server as a backend and an HTML5 Canvas frontend.
 

@@ -6,6 +6,7 @@ import time
 import random
 import webbrowser
 import urllib.parse
+from pathlib import Path
 from models import Node
 from dsa_core import build_adjacency_list, build_source_optimized_graph, dijkstra_shortest_path
 
@@ -15,6 +16,7 @@ NUM_NODES = 60
 TRANSMISSION_RANGE = 180
 SOURCE_ID = 0
 GOAL_ID = NUM_NODES - 1
+PROJECT_DIR = Path(__file__).resolve().parent
 
 class GlobalState:
     def __init__(self):
@@ -59,7 +61,7 @@ class SimulationHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            with open('index.html', 'rb') as f:
+            with open(PROJECT_DIR / 'index.html', 'rb') as f:
                 self.wfile.write(f.read())
         elif path_only == '/data':
             with state.lock:
@@ -170,10 +172,12 @@ def run_server():
         webbrowser.open(f"http://localhost:{PORT}")
         httpd.serve_forever()
 
-if __name__ == "__main__":
-    # Start simulation thread
+
+def main():
     sim_thread = threading.Thread(target=state.update, daemon=True)
     sim_thread.start()
-    
-    # Start web server
     run_server()
+
+
+if __name__ == "__main__":
+    main()
