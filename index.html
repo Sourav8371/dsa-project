@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster-Time Communication System | DSA Simulation</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --accent: #38bdf8;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 1.5rem 2rem;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        #visualizer-container {
+            flex: 1;
+            background: var(--card);
+            border-radius: 1rem;
+            position: relative;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .stat-value {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.75rem;
+        }
+
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-2px); }
+
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        #legend {
+            margin-top: auto;
+            font-size: 0.875rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 0.5rem; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        .connected { color: var(--success); }
+        .disconnected { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Power Efficient Communication Backbone (MST Routing)</h1>
+    <div id="status" class="connected">System Online</div>
+</header>
+
+<main>
+    <div id="visualizer-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="controls">
+        <div class="card">
+            <div class="stat-grid">
+                <div class="stat-item">
+                    <span class="stat-label">Network Status</span>
+                    <span id="network-status" class="stat-value connected">OK</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Path Hops</span>
+                    <span id="path-hops" class="stat-value">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Min Cost Path</span>
+                    <span id="path-cost" class="stat-value">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <button class="btn-primary" onclick="triggerAction('fail')">Simulate Node Failure</button>
+            <button class="btn-danger" onclick="triggerAction('reset')">Reset Network</button>
+        </div>
+
+        <div class="card" id="legend">
+            <span class="stat-label" style="margin-bottom: 0.5rem">Legend</span>
+            <div class="legend-item"><div class="dot" style="background: #38bdf8"></div> Source Node</div>
+            <div class="legend-item"><div class="dot" style="background: #a855f7"></div> Destination</div>
+            <div class="legend-item"><div class="dot" style="background: #10b981"></div> Healthy Node</div>
+            <div class="legend-item"><div class="dot" style="background: #ef4444"></div> Low Battery</div>
+            <div class="legend-item"><div class="dot" style="background: #334155"></div> Failed Node</div>
+        </div>
+    </div>
+</main>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let nodes = [];
+    let edges = {};
+    let path = [];
+    let config = {};
+
+    function resize() {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    async function fetchData() {
+        try {
+            const res = await fetch('/data');
+            const data = await res.json();
+            nodes = data.nodes;
+            edges = data.edges;
+            path = data.path;
+            config = {
+                source_id: data.source_id,
+                goal_id: data.goal_id
+            };
+            
+            // Update UI Stats
+            const statusEl = document.getElementById('network-status');
+            const hopsEl = document.getElementById('path-hops');
+            const costEl = document.getElementById('path-cost');
+
+            if (path && path.length > 0) {
+                statusEl.textContent = "CONNECTED";
+                statusEl.className = "stat-value connected";
+                hopsEl.textContent = path.length - 1;
+                costEl.textContent = Math.round(data.cost);
+            } else {
+                statusEl.textContent = "PARTITIONED";
+                statusEl.className = "stat-value disconnected";
+                hopsEl.textContent = "N/A";
+                costEl.textContent = "INF";
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function triggerAction(type) {
+        fetch('/' + type);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw potential links (Adjacency List)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        for (const [uId, neighbors] of Object.entries(edges)) {
+            const u = nodes.find(n => n.id == uId);
+            if (!u) continue;
+            for (const vId of Object.keys(neighbors)) {
+                const v = nodes.find(n => n.id == vId);
+                if (!v) continue;
+                ctx.beginPath();
+                ctx.moveTo(u.x, u.y);
+                ctx.lineTo(v.x, v.y);
+                ctx.stroke();
+            }
+        }
+
+        // Draw Dijkstra Path
+        if (path && path.length > 1) {
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 4;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            const start = nodes.find(n => n.id == path[0]);
+            ctx.moveTo(start.x, start.y);
+            for (let i = 1; i < path.length; i++) {
+                const node = nodes.find(n => n.id == path[i]);
+                ctx.lineTo(node.x, node.y);
+            }
+            ctx.stroke();
+            
+            // Path Glow
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#38bdf8';
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        // Draw Nodes
+        nodes.forEach(node => {
+            const isSource = node.id == config.source_id;
+            const isGoal = node.id == config.goal_id;
+            
+            let color = '#10b981'; // healthy
+            if (node.failed) color = '#334155';
+            else if (node.battery < 30) color = '#ef4444';
+            else if (node.battery < 60) color = '#f59e0b';
+            
+            if (isSource) color = '#38bdf8';
+            if (isGoal) color = '#a855f7';
+
+            // Glow for active nodes in path
+            if (path && path.includes(node.id)) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = color;
+            }
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, (isSource || isGoal) ? 8 : 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // ID Text (Hide for static destination)
+            if (!isGoal) {
+                ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                ctx.font = '10px Inter';
+                ctx.textAlign = 'center';
+                if (!node.failed) {
+                    ctx.fillText(Math.round(node.battery) + '%', node.x, node.y - 12);
+                } else {
+                    ctx.fillText('DEAD', node.x, node.y - 12);
+                }
+            }
+        });
+
+        requestAnimationFrame(draw);
+    }
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        let hoverNode = null;
+        for (const node of nodes) {
+            if (node.failed || node.id === config.goal_id) continue;
+            const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
+            if (dist <= 15) {
+                hoverNode = node;
+                break;
+            }
+        }
+        
+        if (hoverNode) {
+            canvas.style.cursor = 'pointer';
+        } else {
+            canvas.style.cursor = 'default';
+        }
+    });
+
+    canvas.addEventListener('click', async (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        let clickedNode = null;
+        for (const node of nodes) {
+            if (node.failed || node.id === config.goal_id) continue;
+            const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
+            if (dist <= 15) {
+                clickedNode = node;
+                break;
+            }
+        }
+        
+        if (clickedNode) {
+            try {
+                await fetch('/set_source?id=' + clickedNode.id);
+                fetchData();
+            } catch (err) {
+                console.error("Failed to set starting node:", err);
+            }
+        }
+    });
+
+    setInterval(fetchData, 100);
+    draw();
+</script>
+
+</body>
+</html>
