@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -41,9 +42,7 @@
             font-size: 1.25rem;
             font-weight: 700;
             letter-spacing: -0.025em;
-            background: linear-gradient(to right, #38bdf8, #818cf8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: #cbd5e1;
         }
 
         main {
@@ -118,11 +117,26 @@
             margin-bottom: 0.75rem;
         }
 
-        .btn-primary { background: var(--accent); color: #000; }
-        .btn-primary:hover { filter: brightness(1.1); transform: translateY(-2px); }
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+        }
 
-        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); }
-        .btn-danger:hover { background: var(--danger); color: white; }
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
 
         #legend {
             margin-top: auto;
@@ -132,246 +146,285 @@
             gap: 0.5rem;
         }
 
-        .legend-item { display: flex; align-items: center; gap: 0.5rem; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
-        .connected { color: var(--success); }
-        .disconnected { color: var(--danger); }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .connected {
+            color: var(--success);
+        }
+
+        .disconnected {
+            color: var(--danger);
+        }
     </style>
 </head>
+
 <body>
 
-<header>
-    <h1>Power Efficient Communication Backbone (MST Routing)</h1>
-    <div id="status" class="connected">System Online</div>
-</header>
+    <header>
+        <h1>Power Efficient Communication Backbone (MST Routing)</h1>
+        <div id="status" class="connected">System Online</div>
+    </header>
 
-<main>
-    <div id="visualizer-container">
-        <canvas id="canvas"></canvas>
-    </div>
+    <main>
+        <div id="visualizer-container">
+            <canvas id="canvas"></canvas>
+        </div>
 
-    <div id="controls">
-        <div class="card">
-            <div class="stat-grid">
-                <div class="stat-item">
-                    <span class="stat-label">Network Status</span>
-                    <span id="network-status" class="stat-value connected">OK</span>
+        <div id="controls">
+            <div class="card">
+                <div class="stat-grid">
+                    <div class="stat-item">
+                        <span class="stat-label">Network Status</span>
+                        <span id="network-status" class="stat-value connected">OK</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Path Hops</span>
+                        <span id="path-hops" class="stat-value">-</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Min Cost Path</span>
+                        <span id="path-cost" class="stat-value">-</span>
+                    </div>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Path Hops</span>
-                    <span id="path-hops" class="stat-value">-</span>
+            </div>
+
+            <div class="card">
+                <button class="btn-primary" onclick="triggerAction('fail_random')">Fail Random Node</button>
+                <button class="btn-primary" onclick="triggerAction('fail_path')">Fail Path Node</button>
+                <button class="btn-primary" onclick="togglePause()">Pause Simulation</button>
+                <button class="btn-danger" onclick="triggerAction('reset')">Reset Network</button>
+            </div>
+
+            <div class="card" id="legend">
+                <span class="stat-label" style="margin-bottom: 0.5rem">Legend</span>
+                <div class="legend-item">
+                    <div class="dot" style="background: #38bdf8"></div> Source Node
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Min Cost Path</span>
-                    <span id="path-cost" class="stat-value">-</span>
+                <div class="legend-item">
+                    <div class="dot" style="background: #a855f7"></div> Destination
+                </div>
+                <div class="legend-item">
+                    <div class="dot" style="background: #10b981"></div> Healthy Node
+                </div>
+                <div class="legend-item">
+                    <div class="dot" style="background: #f59e0b"></div> Medium Battery
+                </div>
+                <div class="legend-item">
+                    <div class="dot" style="background: #ef4444"></div> Low Battery
+                </div>
+                <div class="legend-item">
+                    <div class="dot" style="background: #334155"></div> Failed Node
                 </div>
             </div>
         </div>
+    </main>
 
-        <div class="card">
-            <button class="btn-primary" onclick="triggerAction('fail')">Simulate Node Failure</button>
-            <button class="btn-danger" onclick="triggerAction('reset')">Reset Network</button>
-        </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let nodes = [];
+        let edges = {};
+        let path = [];
+        let config = {};
+        let isPaused = false;
 
-        <div class="card" id="legend">
-            <span class="stat-label" style="margin-bottom: 0.5rem">Legend</span>
-            <div class="legend-item"><div class="dot" style="background: #38bdf8"></div> Source Node</div>
-            <div class="legend-item"><div class="dot" style="background: #a855f7"></div> Destination</div>
-            <div class="legend-item"><div class="dot" style="background: #10b981"></div> Healthy Node</div>
-            <div class="legend-item"><div class="dot" style="background: #ef4444"></div> Low Battery</div>
-            <div class="legend-item"><div class="dot" style="background: #334155"></div> Failed Node</div>
-        </div>
-    </div>
-</main>
-
-<script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    let nodes = [];
-    let edges = {};
-    let path = [];
-    let config = {};
-
-    function resize() {
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-    }
-
-    window.addEventListener('resize', resize);
-    resize();
-
-    async function fetchData() {
-        try {
-            const res = await fetch('/data');
-            const data = await res.json();
-            nodes = data.nodes;
-            edges = data.edges;
-            path = data.path;
-            config = {
-                source_id: data.source_id,
-                goal_id: data.goal_id
-            };
-            
-            // Update UI Stats
-            const statusEl = document.getElementById('network-status');
-            const hopsEl = document.getElementById('path-hops');
-            const costEl = document.getElementById('path-cost');
-
-            if (path && path.length > 0) {
-                statusEl.textContent = "CONNECTED";
-                statusEl.className = "stat-value connected";
-                hopsEl.textContent = path.length - 1;
-                costEl.textContent = Math.round(data.cost);
-            } else {
-                statusEl.textContent = "PARTITIONED";
-                statusEl.className = "stat-value disconnected";
-                hopsEl.textContent = "N/A";
-                costEl.textContent = "INF";
-            }
-        } catch (e) {
-            console.error(e);
-        }
-    }
-
-    function triggerAction(type) {
-        fetch('/' + type);
-    }
-
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Draw potential links (Adjacency List)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = 1;
-        for (const [uId, neighbors] of Object.entries(edges)) {
-            const u = nodes.find(n => n.id == uId);
-            if (!u) continue;
-            for (const vId of Object.keys(neighbors)) {
-                const v = nodes.find(n => n.id == vId);
-                if (!v) continue;
-                ctx.beginPath();
-                ctx.moveTo(u.x, u.y);
-                ctx.lineTo(v.x, v.y);
-                ctx.stroke();
-            }
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
         }
 
-        // Draw Dijkstra Path
-        if (path && path.length > 1) {
-            ctx.strokeStyle = '#38bdf8';
-            ctx.lineWidth = 4;
-            ctx.lineJoin = 'round';
-            ctx.beginPath();
-            const start = nodes.find(n => n.id == path[0]);
-            ctx.moveTo(start.x, start.y);
-            for (let i = 1; i < path.length; i++) {
-                const node = nodes.find(n => n.id == path[i]);
-                ctx.lineTo(node.x, node.y);
-            }
-            ctx.stroke();
-            
-            // Path Glow
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#38bdf8';
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        }
+        window.addEventListener('resize', resize);
+        resize();
 
-        // Draw Nodes
-        nodes.forEach(node => {
-            const isSource = node.id == config.source_id;
-            const isGoal = node.id == config.goal_id;
-            
-            let color = '#10b981'; // healthy
-            if (node.failed) color = '#334155';
-            else if (node.battery < 30) color = '#ef4444';
-            else if (node.battery < 60) color = '#f59e0b';
-            
-            if (isSource) color = '#38bdf8';
-            if (isGoal) color = '#a855f7';
+        async function fetchData() {
+            try {
+                const res = await fetch('/data');
+                const data = await res.json();
+                nodes = data.nodes;
+                edges = data.edges;
+                path = data.path;
+                config = {
+                    source_id: data.source_id,
+                    goal_id: data.goal_id
+                };
 
-            // Glow for active nodes in path
-            if (path && path.includes(node.id)) {
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = color;
-            }
+                // Update UI Stats
+                const statusEl = document.getElementById('network-status');
+                const hopsEl = document.getElementById('path-hops');
+                const costEl = document.getElementById('path-cost');
 
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, (isSource || isGoal) ? 8 : 5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // ID Text (Hide for static destination)
-            if (!isGoal) {
-                ctx.fillStyle = 'rgba(255,255,255,0.5)';
-                ctx.font = '10px Inter';
-                ctx.textAlign = 'center';
-                if (!node.failed) {
-                    ctx.fillText(Math.round(node.battery) + '%', node.x, node.y - 12);
+                if (path && path.length > 0) {
+                    statusEl.textContent = "CONNECTED";
+                    statusEl.className = "stat-value connected";
+                    hopsEl.textContent = path.length - 1;
+                    costEl.textContent = Math.round(data.cost);
                 } else {
-                    ctx.fillText('DEAD', node.x, node.y - 12);
+                    statusEl.textContent = "PARTITIONED";
+                    statusEl.className = "stat-value disconnected";
+                    hopsEl.textContent = "N/A";
+                    costEl.textContent = "INF";
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function triggerAction(type) {
+            fetch('/' + type);
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = event.target;
+            btn.textContent = isPaused ? 'Resume Simulation' : 'Pause Simulation';
+            fetch('/toggle_pause');
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw potential links (Adjacency List)
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for (const [uId, neighbors] of Object.entries(edges)) {
+                const u = nodes.find(n => n.id == uId);
+                if (!u) continue;
+                for (const vId of Object.keys(neighbors)) {
+                    const v = nodes.find(n => n.id == vId);
+                    if (!v) continue;
+                    ctx.beginPath();
+                    ctx.moveTo(u.x, u.y);
+                    ctx.lineTo(v.x, v.y);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw Dijkstra Path
+            if (path && path.length > 1) {
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 4;
+                ctx.lineJoin = 'round';
+                ctx.beginPath();
+                const start = nodes.find(n => n.id == path[0]);
+                ctx.moveTo(start.x, start.y);
+                for (let i = 1; i < path.length; i++) {
+                    const node = nodes.find(n => n.id == path[i]);
+                    ctx.lineTo(node.x, node.y);
+                }
+                ctx.stroke();
+
+                // Path Glow
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#38bdf8';
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            // Draw Nodes
+            nodes.forEach(node => {
+                const isSource = node.id == config.source_id;
+                const isGoal = node.id == config.goal_id;
+
+                let color = '#10b981'; // healthy
+                if (node.failed) color = '#334155';
+                else if (node.battery < 30) color = '#ef4444';
+                else if (node.battery < 60) color = '#f59e0b';
+
+                if (isSource) color = '#38bdf8';
+                if (isGoal) color = '#a855f7';
+
+                // Glow for active nodes in path
+                if (path && path.includes(node.id)) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = color;
+                }
+
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, (isSource || isGoal) ? 8 : 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // ID Text (Hide for static destination)
+                if (!isGoal) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+                    ctx.font = '10px Inter';
+                    ctx.textAlign = 'center';
+                    if (!node.failed) {
+                        ctx.fillText(Math.round(node.battery) + '%', node.x, node.y - 12);
+                    } else {
+                        ctx.fillText('DEAD', node.x, node.y - 12);
+                    }
+                }
+            });
+
+            requestAnimationFrame(draw);
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let hoverNode = null;
+            for (const node of nodes) {
+                if (node.failed || node.id === config.goal_id) continue;
+                const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
+                if (dist <= 15) {
+                    hoverNode = node;
+                    break;
+                }
+            }
+
+            if (hoverNode) {
+                canvas.style.cursor = 'pointer';
+            } else {
+                canvas.style.cursor = 'default';
+            }
+        });
+
+        canvas.addEventListener('click', async (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            let clickedNode = null;
+            for (const node of nodes) {
+                if (node.failed || node.id === config.goal_id) continue;
+                const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
+                if (dist <= 15) {
+                    clickedNode = node;
+                    break;
+                }
+            }
+
+            if (clickedNode) {
+                try {
+                    await fetch('/set_source?id=' + clickedNode.id);
+                    fetchData();
+                } catch (err) {
+                    console.error("Failed to set starting node:", err);
                 }
             }
         });
 
-        requestAnimationFrame(draw);
-    }
-
-    canvas.addEventListener('mousemove', (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        let hoverNode = null;
-        for (const node of nodes) {
-            if (node.failed || node.id === config.goal_id) continue;
-            const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
-            if (dist <= 15) {
-                hoverNode = node;
-                break;
-            }
-        }
-        
-        if (hoverNode) {
-            canvas.style.cursor = 'pointer';
-        } else {
-            canvas.style.cursor = 'default';
-        }
-    });
-
-    canvas.addEventListener('click', async (e) => {
-        const rect = canvas.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        
-        let clickedNode = null;
-        for (const node of nodes) {
-            if (node.failed || node.id === config.goal_id) continue;
-            const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
-            if (dist <= 15) {
-                clickedNode = node;
-                break;
-            }
-        }
-        
-        if (clickedNode) {
-            try {
-                await fetch('/set_source?id=' + clickedNode.id);
-                fetchData();
-            } catch (err) {
-                console.error("Failed to set starting node:", err);
-            }
-        }
-    });
-
-    setInterval(fetchData, 100);
-    draw();
-</script>
+        setInterval(fetchData, 100);
+        draw();
+    </script>
 
 </body>
+
 </html>

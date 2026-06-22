@@ -17,7 +17,7 @@ class Node:
         self.dy = random.uniform(-1.5, 1.5)
         
         self.max_battery = 100.0
-        self.battery = random.uniform(40.0, 100.0)
+        self.battery = random.uniform(15.0, 95.0)
         self.failed = False
         
         # New specialized roles
@@ -42,7 +42,7 @@ class Node:
             
         # Drain battery slowly over time
         # Random drain rate to make simulation dynamic
-        drain_rate = random.uniform(0.005, 0.02)
+        drain_rate = random.uniform(0.02, 0.08)
         self.drain_battery(drain_rate)
 
     def drain_battery(self, amount):

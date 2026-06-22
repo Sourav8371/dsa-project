@@ -7,7 +7,7 @@ import random
 import webbrowser
 import urllib.parse
 from models import Node
-from dsa_core import build_adjacency_list, dijkstra_shortest_path
+from dsa_core import build_adjacency_list, build_source_optimized_graph, dijkstra_shortest_path
 
 # Simulation Configuration
 WIDTH, HEIGHT = 800, 600
@@ -23,6 +23,7 @@ class GlobalState:
         self.init_nodes()
         self.lock = threading.Lock()
         self.is_running = True
+        self.is_paused = False
 
     def init_nodes(self):
         self.nodes = []
@@ -41,9 +42,10 @@ class GlobalState:
 
     def update(self):
         while self.is_running:
-            with self.lock:
-                for node in self.nodes:
-                    node.move()
+            if not self.is_paused:
+                with self.lock:
+                    for node in self.nodes:
+                        node.move()
             time.sleep(0.1) # 10 FPS updates
 
 state = GlobalState()
@@ -73,8 +75,12 @@ class SimulationHandler(http.server.SimpleHTTPRequestHandler):
                             if d > max_dist:
                                 max_dist = d
                                 current_source_id = node.node_id
-
-                graph = build_adjacency_list(state.nodes, TRANSMISSION_RANGE)
+                    # Use normal MST when no source is manually selected
+                    graph = build_adjacency_list(state.nodes, TRANSMISSION_RANGE)
+                else:
+                    # Use source-optimized graph when user manually selects a source
+                    graph = build_source_optimized_graph(state.nodes, TRANSMISSION_RANGE, current_source_id, GOAL_ID)
+                
                 path, cost = dijkstra_shortest_path(graph, current_source_id, GOAL_ID)
                 
                 data = {
@@ -101,6 +107,44 @@ class SimulationHandler(http.server.SimpleHTTPRequestHandler):
                             state.user_source_id = node_id
                 except ValueError:
                     pass
+            self.send_response(200)
+            self.end_headers()
+        elif path_only == '/fail_random':
+            with state.lock:
+                healthy = [n for n in state.nodes if not n.failed and n.node_id not in (SOURCE_ID, GOAL_ID)]
+                if healthy:
+                    random.choice(healthy).toggle_fail()
+            self.send_response(200)
+            self.end_headers()
+        elif path_only == '/fail_path':
+            with state.lock:
+                current_source_id = state.user_source_id
+                # Fallback to dynamic farthest node if no valid user source node is selected
+                if current_source_id is None or current_source_id >= len(state.nodes):
+                    dest = state.nodes[GOAL_ID]
+                    max_dist = -1
+                    current_source_id = 0
+                    for node in state.nodes:
+                        if not node.failed and node.node_id != GOAL_ID:
+                            d = node.distance_to(dest)
+                            if d > max_dist:
+                                max_dist = d
+                                current_source_id = node.node_id
+                
+                graph = build_adjacency_list(state.nodes, TRANSMISSION_RANGE)
+                path, cost = dijkstra_shortest_path(graph, current_source_id, GOAL_ID)
+                
+                # Fail a random node from the path (excluding source and destination)
+                if path and len(path) > 2:
+                    failurable = [n for n in path[1:-1] if not state.nodes[n].failed]
+                    if failurable:
+                        node_id = random.choice(failurable)
+                        state.nodes[node_id].toggle_fail()
+            self.send_response(200)
+            self.end_headers()
+        elif path_only == '/toggle_pause':
+            with state.lock:
+                state.is_paused = not state.is_paused
             self.send_response(200)
             self.end_headers()
         elif path_only == '/fail':

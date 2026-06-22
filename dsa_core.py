@@ -1,5 +1,21 @@
 import heapq
 
+class UnionFind:
+    """Helper for Kruskal's MST algorithm."""
+    def __init__(self, nodes):
+        self.parent = {node: node for node in nodes}
+    def find(self, i):
+        if self.parent[i] == i: return i
+        self.parent[i] = self.find(self.parent[i])
+        return self.parent[i]
+    def union(self, i, j):
+        root_i = self.find(i)
+        root_j = self.find(j)
+        if root_i != root_j:
+            self.parent[root_i] = root_j
+            return True
+        return False
+
 class PriorityQueue:
     """
     A custom wrapper around heapq to explicitly demonstrate the use of priority queues 
@@ -18,29 +34,18 @@ class PriorityQueue:
     def get(self):
         return heapq.heappop(self.elements)[1]
 
-class UnionFind:
-    """Helper for Kruskal's MST algorithm."""
-    def __init__(self, nodes):
-        self.parent = {node: node for node in nodes}
-    def find(self, i):
-        if self.parent[i] == i: return i
-        self.parent[i] = self.find(self.parent[i])
-        return self.parent[i]
-    def union(self, i, j):
-        root_i = self.find(i)
-        root_j = self.find(j)
-        if root_i != root_j:
-            self.parent[root_i] = root_j
-            return True
-        return False
 
 def build_adjacency_list(nodes, transmission_range):
     """
     Builds a Power-Efficient Backbone using Kruskal's Minimum Spanning Tree.
-    This ensures minimum connectivity with NO redundant cycles.
+    This ensures minimum connectivity with NO redundant cycles - each node connects to 2-3 others.
+    Realistic for battery-constrained ad-hoc networks.
     """
     potential_edges = []
     active_nodes = [n.node_id for n in nodes if not n.failed]
+    
+    if not active_nodes:
+        return {}
     
     # Identify all possible signal links
     for i in range(len(nodes)):
@@ -53,6 +58,58 @@ def build_adjacency_list(nodes, transmission_range):
                 # Weight prioritizing high battery and short distance
                 penalty = (100 - nodes[i].battery) + (100 - nodes[j].battery)
                 weight = dist + penalty
+                potential_edges.append((weight, nodes[i].node_id, nodes[j].node_id))
+    
+    # Kruskal's Logic: Sort by weight and pick edges that don't form cycles
+    potential_edges.sort()
+    uf = UnionFind(active_nodes)
+    mst_edges = []
+    for weight, u, v in potential_edges:
+        if uf.union(u, v):
+            mst_edges.append((u, v, weight))
+            
+    # Build the final graph dictionary
+    graph = {node_id: {} for node_id in active_nodes}
+    for u, v, w in mst_edges:
+        graph[u][v] = w
+        graph[v][u] = w
+        
+    return graph
+
+
+def build_source_optimized_graph(nodes, transmission_range, source_id, goal_id):
+    """
+    Builds an MST optimized for a specific source to reach a specific goal.
+    Used when user manually selects a source node.
+    Prioritizes connectivity from source to goal while keeping realistic 2-3 connections per node.
+    """
+    potential_edges = []
+    active_nodes = [n.node_id for n in nodes if not n.failed]
+    
+    if not active_nodes or source_id not in active_nodes or goal_id not in active_nodes:
+        return build_adjacency_list(nodes, transmission_range)
+    
+    # Identify all possible signal links
+    for i in range(len(nodes)):
+        if nodes[i].failed: continue
+        for j in range(i + 1, len(nodes)):
+            if nodes[j].failed: continue
+            
+            dist = nodes[i].distance_to(nodes[j])
+            if dist <= transmission_range:
+                # Weight prioritizing high battery and short distance
+                penalty = (100 - nodes[i].battery) + (100 - nodes[j].battery)
+                base_weight = dist + penalty
+                
+                # Bonus for edges that connect closer to source or goal
+                source_dist = nodes[i].distance_to(nodes[source_id]) + nodes[j].distance_to(nodes[source_id])
+                goal_dist = nodes[i].distance_to(nodes[goal_id]) + nodes[j].distance_to(nodes[goal_id])
+                
+                # Reduce weight for edges near source or goal (encourage connectivity there)
+                source_bonus = max(0, 100 - source_dist) * 0.1
+                goal_bonus = max(0, 100 - goal_dist) * 0.1
+                
+                weight = base_weight - source_bonus - goal_bonus
                 potential_edges.append((weight, nodes[i].node_id, nodes[j].node_id))
     
     # Kruskal's Logic: Sort by weight and pick edges that don't form cycles
